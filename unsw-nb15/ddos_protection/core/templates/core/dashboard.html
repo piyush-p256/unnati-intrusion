@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: #f0f2f5;
+      color: #333;
+    }
+
+    /* Header */
+    header {
+      background-color: #007bff;
+      padding: 20px;
+      color: white;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Layout */
+    .main-container {
+      display: flex;
+    }
+
+    /* Sidebar placeholder */
+    .sidebar {
+      width: 200px;
+      background-color: #fff;
+      padding: 20px;
+      border-right: 1px solid #ddd;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      height: calc(100vh - 80px);
+    }
+
+    /* Content */
+    .content {
+      flex: 1;
+      padding: 30px;
+    }
+
+    h2 {
+      margin-top: 0;
+      color: #222;
+    }
+
+    .chart-container {
+      width: 100%;
+      max-width: 500px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    th, td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #e0e0e0;
+      text-align: center;
+    }
+
+    th {
+      background-color: #007bff;
+      color: #fff;
+    }
+
+    td:last-child {
+      font-weight: bold;
+    }
+
+    .attack-normal {
+      color: green;
+    }
+
+    .attack-malicious {
+      color: red;
+    }
+
+    @media (max-width: 768px) {
+      .main-container {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    🛡️ Traffic Dashboard
+  </header>
+
+  <div class="main-container">
+
+    <div class="content">
+      <h2>Attack Statistics</h2>
+      <div class="chart-container">
+        <canvas id="attackChart"></canvas>
+      </div>
+
+      <h2>Live Request Logs</h2>
+      <table id="logs-table">
+        <thead>
+          <tr>
+            <th>IP</th>
+            <th>Time</th>
+            <th>Attack Type</th>
+            <th>Blocked</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    const tbody = document.querySelector('#logs-table tbody');
+    const ctx = document.getElementById('attackChart').getContext('2d');
+
+    // Generate distinct colors
+    function getColor(index) {
+      const colors = [
+        '#007bff', '#dc3545', '#28a745', '#ffc107', '#6f42c1',
+        '#17a2b8', '#fd7e14', '#20c997', '#6610f2', '#e83e8c'
+      ];
+      return colors[index % colors.length];
+    }
+
+    let attackChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Attack Types',
+          data: [],
+          backgroundColor: [],
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            position: 'bottom',
+          },
+          title: {
+            display: true,
+            text: 'Attack Type Distribution'
+          }
+        }
+      }
+    });
+
+    async function loadLogs() {
+      const res = await fetch('/api/logs/');
+      const logs = await res.json();
+
+      tbody.innerHTML = '';
+      const attackCount = {};
+
+      logs.forEach(log => {
+        attackCount[log.attack_type] = (attackCount[log.attack_type] || 0) + 1;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${log.ip_address}</td>
+          <td>${new Date(log.timestamp).toLocaleTimeString()}</td>
+          <td class="${log.attack_type === 'Normal' ? 'attack-normal' : 'attack-malicious'}">
+            ${log.attack_type}
+          </td>
+          <td>${log.blocked}</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      // Update chart
+      const labels = Object.keys(attackCount);
+      const data = Object.values(attackCount);
+      const colors = labels.map((_, idx) => getColor(idx));
+
+      attackChart.data.labels = labels;
+      attackChart.data.datasets[0].data = data;
+      attackChart.data.datasets[0].backgroundColor = colors;
+      attackChart.update();
+    }
+
+    loadLogs();
+    setInterval(loadLogs, 2000);
+  </script>
+</body>
+</html>
